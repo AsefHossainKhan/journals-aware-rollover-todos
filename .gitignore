@@ -1,0 +1,13 @@
+# npm
+node_modules/
+package-lock.json
+
+# build artifacts
+*.js.map
+
+# obsidian runtime config for this plugin (per-user settings)
+data.json
+
+# os / editor
+.DS_Store
+Thumbs.db
