@@ -169,7 +169,7 @@ export default class JournalsAwareRolloverPlugin extends Plugin {
 		}
 
 		const previousContent = await this.app.vault.read(previous);
-		let todos = getUnfinishedTodos(previousContent, {
+		const todos = getUnfinishedTodos(previousContent, {
 			withChildren: this.settings.rolloverChildren,
 			doneStatusMarkers: this.settings.doneStatusMarkers,
 			removeEmptyTodos: this.settings.removeEmptyTodos,
@@ -182,24 +182,47 @@ export default class JournalsAwareRolloverPlugin extends Plugin {
 			return;
 		}
 
-		const currentContent = await this.app.vault.read(file);
+		// Insert atomically: Vault.process hands us the current on-disk content and
+		// writes the return value back in one step, so we never clobber a concurrent
+		// edit. Dedup and insertion both run against that fresh content for the same
+		// reason. Outcome is surfaced via outer state for the notices below.
+		// Held in an object so the closure's writes aren't narrowed away by TS.
+		type Outcome = "inserted" | "all-duplicates" | "no-heading";
+		const result: { outcome: Outcome; rolled: string[] } = {
+			outcome: "no-heading",
+			rolled: [],
+		};
 
-		if (this.settings.skipDuplicates) {
-			const existing = new Set(
-				currentContent.split(/\r?\n/).map((l) => l.trim())
-			);
-			todos = todos.filter((line) => !existing.has(line.trim()));
-			if (todos.length === 0) {
-				if (opts.manual) {
-					new Notice("Journal Aware Rollover: all todos are already present in this note.");
+		await this.app.vault.process(file, (data) => {
+			let toInsert = todos;
+			if (this.settings.skipDuplicates) {
+				const existing = new Set(data.split(/\r?\n/).map((l) => l.trim()));
+				toInsert = toInsert.filter((line) => !existing.has(line.trim()));
+				if (toInsert.length === 0) {
+					result.outcome = "all-duplicates";
+					return data; // nothing new to add; leave the note untouched
 				}
-				return;
 			}
-		}
 
-		const inserted = this.insertTodos(currentContent, todos);
-		if (inserted == null) {
-			// headingFallback === "skip" and no heading found.
+			const inserted = this.insertTodos(data, toInsert);
+			if (inserted == null) {
+				// headingFallback === "skip" and no heading found.
+				result.outcome = "no-heading";
+				return data;
+			}
+
+			result.outcome = "inserted";
+			result.rolled = toInsert;
+			return inserted;
+		});
+
+		if (result.outcome === "all-duplicates") {
+			if (opts.manual) {
+				new Notice("Journal Aware Rollover: all todos are already present in this note.");
+			}
+			return;
+		}
+		if (result.outcome === "no-heading") {
 			if (opts.manual) {
 				new Notice(
 					"Journal Aware Rollover: target heading not found and fallback is set to skip."
@@ -208,14 +231,12 @@ export default class JournalsAwareRolloverPlugin extends Plugin {
 			return;
 		}
 
-		await this.app.vault.modify(file, inserted);
-
 		if (this.settings.deleteFromPrevious) {
-			await this.deleteFromPrevious(previous, todos);
+			await this.deleteFromPrevious(previous, result.rolled);
 		}
 
 		if (this.settings.showNotice) {
-			const n = todos.length;
+			const n = result.rolled.length;
 			new Notice(
 				`Journal Aware Rollover: ${n} todo${n > 1 ? "s" : ""} from ${previous.basename}.`
 			);
@@ -263,10 +284,13 @@ export default class JournalsAwareRolloverPlugin extends Plugin {
 	}
 
 	private async deleteFromPrevious(previous: TFile, rolled: string[]): Promise<void> {
-		const content = await this.app.vault.read(previous);
 		const remove = new Set(rolled);
-		const kept = content.split(/\r?\n/).filter((line) => !remove.has(line));
-		await this.app.vault.modify(previous, kept.join("\n"));
+		await this.app.vault.process(previous, (content) =>
+			content
+				.split(/\r?\n/)
+				.filter((line) => !remove.has(line))
+				.join("\n")
+		);
 	}
 }
 

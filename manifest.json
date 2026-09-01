@@ -1,7 +1,7 @@
 {
 	"id": "journals-aware-rollover-todos",
 	"name": "Journals Aware Rollover Todos",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "1.4.16",
 	"description": "Rolls unfinished todos forward into notes created by the Journals plugin. Finds the previous note via journal-date frontmatter instead of Daily Notes paths, so it works with Journals' nested, date-templated folders.",
 	"author": "Asef Hossain",

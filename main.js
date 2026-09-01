@@ -331,7 +331,7 @@ var JournalsAwareRolloverPlugin = class extends import_obsidian2.Plugin {
       return;
     }
     const previousContent = await this.app.vault.read(previous);
-    let todos = getUnfinishedTodos(previousContent, {
+    const todos = getUnfinishedTodos(previousContent, {
       withChildren: this.settings.rolloverChildren,
       doneStatusMarkers: this.settings.doneStatusMarkers,
       removeEmptyTodos: this.settings.removeEmptyTodos
@@ -342,21 +342,36 @@ var JournalsAwareRolloverPlugin = class extends import_obsidian2.Plugin {
       }
       return;
     }
-    const currentContent = await this.app.vault.read(file);
-    if (this.settings.skipDuplicates) {
-      const existing = new Set(
-        currentContent.split(/\r?\n/).map((l) => l.trim())
-      );
-      todos = todos.filter((line) => !existing.has(line.trim()));
-      if (todos.length === 0) {
-        if (opts.manual) {
-          new import_obsidian2.Notice("Journal Aware Rollover: all todos are already present in this note.");
+    const result = {
+      outcome: "no-heading",
+      rolled: []
+    };
+    await this.app.vault.process(file, (data) => {
+      let toInsert = todos;
+      if (this.settings.skipDuplicates) {
+        const existing = new Set(data.split(/\r?\n/).map((l) => l.trim()));
+        toInsert = toInsert.filter((line) => !existing.has(line.trim()));
+        if (toInsert.length === 0) {
+          result.outcome = "all-duplicates";
+          return data;
         }
-        return;
       }
+      const inserted = this.insertTodos(data, toInsert);
+      if (inserted == null) {
+        result.outcome = "no-heading";
+        return data;
+      }
+      result.outcome = "inserted";
+      result.rolled = toInsert;
+      return inserted;
+    });
+    if (result.outcome === "all-duplicates") {
+      if (opts.manual) {
+        new import_obsidian2.Notice("Journal Aware Rollover: all todos are already present in this note.");
+      }
+      return;
     }
-    const inserted = this.insertTodos(currentContent, todos);
-    if (inserted == null) {
+    if (result.outcome === "no-heading") {
       if (opts.manual) {
         new import_obsidian2.Notice(
           "Journal Aware Rollover: target heading not found and fallback is set to skip."
@@ -364,12 +379,11 @@ var JournalsAwareRolloverPlugin = class extends import_obsidian2.Plugin {
       }
       return;
     }
-    await this.app.vault.modify(file, inserted);
     if (this.settings.deleteFromPrevious) {
-      await this.deleteFromPrevious(previous, todos);
+      await this.deleteFromPrevious(previous, result.rolled);
     }
     if (this.settings.showNotice) {
-      const n = todos.length;
+      const n = result.rolled.length;
       new import_obsidian2.Notice(
         `Journal Aware Rollover: ${n} todo${n > 1 ? "s" : ""} from ${previous.basename}.`
       );
@@ -408,10 +422,11 @@ var JournalsAwareRolloverPlugin = class extends import_obsidian2.Plugin {
     return content.endsWith("\n") || content.length === 0 ? content + block + "\n" : content + "\n" + block + "\n";
   }
   async deleteFromPrevious(previous, rolled) {
-    const content = await this.app.vault.read(previous);
     const remove = new Set(rolled);
-    const kept = content.split(/\r?\n/).filter((line) => !remove.has(line));
-    await this.app.vault.modify(previous, kept.join("\n"));
+    await this.app.vault.process(
+      previous,
+      (content) => content.split(/\r?\n/).filter((line) => !remove.has(line)).join("\n")
+    );
   }
 };
 function frontmatterEndIndex(lines) {

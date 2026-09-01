@@ -84,8 +84,6 @@ The repo root is also the installed plugin folder inside a test vault
 (`<vault>/.obsidian/plugins/journals-aware-rollover-todos/`), so a build updates
 the running plugin in place — just reload the plugin in Obsidian.
 
-See [docs/PLAN.md](docs/PLAN.md) for the design notes and roadmap.
-
 ## License
 
 [MIT](LICENSE)
