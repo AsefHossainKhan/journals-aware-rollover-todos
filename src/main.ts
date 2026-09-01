@@ -37,14 +37,19 @@ export default class JournalsAwareRolloverPlugin extends Plugin {
 
 		this.addSettingTab(new JournalsAwareRolloverSettingTab(this.app, this));
 
-		this.registerEvent(
-			this.app.vault.on("create", (file) => {
-				if (!this.settings.autoRolloverOnCreate) return;
-				if (!(file instanceof TFile) || file.extension !== "md") return;
-				// Fire and forget; readiness polling happens inside.
-				void this.handleCreate(file);
-			})
-		);
+		// Obsidian fires a `create` event for every existing file while it indexes
+		// the vault at startup. Registering the listener only after the layout is
+		// ready skips that initial storm, so we react to genuinely new notes only.
+		this.app.workspace.onLayoutReady(() => {
+			this.registerEvent(
+				this.app.vault.on("create", (file) => {
+					if (!this.settings.autoRolloverOnCreate) return;
+					if (!(file instanceof TFile) || file.extension !== "md") return;
+					// Fire and forget; readiness polling happens inside.
+					void this.handleCreate(file);
+				})
+			);
+		});
 
 		this.addCommand({
 			id: "rollover-into-current-note",

@@ -215,15 +215,17 @@ var JournalsAwareRolloverPlugin = class extends import_obsidian2.Plugin {
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new JournalsAwareRolloverSettingTab(this.app, this));
-    this.registerEvent(
-      this.app.vault.on("create", (file) => {
-        if (!this.settings.autoRolloverOnCreate)
-          return;
-        if (!(file instanceof import_obsidian2.TFile) || file.extension !== "md")
-          return;
-        void this.handleCreate(file);
-      })
-    );
+    this.app.workspace.onLayoutReady(() => {
+      this.registerEvent(
+        this.app.vault.on("create", (file) => {
+          if (!this.settings.autoRolloverOnCreate)
+            return;
+          if (!(file instanceof import_obsidian2.TFile) || file.extension !== "md")
+            return;
+          void this.handleCreate(file);
+        })
+      );
+    });
     this.addCommand({
       id: "rollover-into-current-note",
       name: "Roll over todos into the current note",
