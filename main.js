@@ -132,15 +132,16 @@ function getUnfinishedTodos(content, options) {
 
 // src/journal.ts
 var import_obsidian = require("obsidian");
-var DATE_FORMATS = ["YYYY-MM-DD", import_obsidian.moment.ISO_8601];
+var M = import_obsidian.moment;
+var DATE_FORMATS = ["YYYY-MM-DD", M.ISO_8601];
 function toMoment(value) {
   if (value == null)
     return null;
   if (value instanceof Date) {
-    const m2 = (0, import_obsidian.moment)(value);
+    const m2 = M(value);
     return m2.isValid() ? m2.startOf("day") : null;
   }
-  const m = (0, import_obsidian.moment)(String(value), DATE_FORMATS, true);
+  const m = M(String(value), DATE_FORMATS, true);
   return m.isValid() ? m.startOf("day") : null;
 }
 function readFrontmatterRaw(content) {
@@ -244,7 +245,8 @@ var JournalsAwareRolloverPlugin = class extends import_obsidian2.Plugin {
     this.recentlyHandled.clear();
   }
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const saved = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
   }
   async saveSettings() {
     await this.saveData(this.settings);

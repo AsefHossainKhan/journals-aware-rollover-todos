@@ -68,7 +68,9 @@ export default class JournalsAwareRolloverPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		// loadData() is typed `any`; narrow it before merging so the result stays typed.
+		const saved = (await this.loadData()) as Partial<JournalRolloverSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
 	}
 
 	async saveSettings() {
