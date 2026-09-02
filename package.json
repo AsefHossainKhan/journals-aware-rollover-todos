@@ -1,6 +1,6 @@
 {
 	"name": "journals-aware-rollover-todos",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "Obsidian plugin that rolls unfinished todos forward into notes created by the Journals plugin, using journal-date frontmatter.",
 	"main": "main.js",
 	"scripts": {
@@ -20,7 +20,6 @@
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^20.11.0",
-		"builtin-modules": "^3.3.0",
 		"esbuild": "0.17.3",
 		"obsidian": "latest",
 		"tslib": "2.4.0",

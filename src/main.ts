@@ -4,7 +4,6 @@ import {
 	Plugin,
 	PluginSettingTab,
 	Setting,
-	TAbstractFile,
 	TFile,
 } from "obsidian";
 
@@ -18,7 +17,6 @@ import { getUnfinishedTodos } from "./todoParser";
 import {
 	findPreviousJournalNote,
 	getJournalInfo,
-	JournalInfo,
 	readFrontmatterRaw,
 } from "./journal";
 
@@ -304,7 +302,7 @@ function frontmatterEndIndex(lines: string[]): number {
 }
 
 function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 class JournalsAwareRolloverSettingTab extends PluginSettingTab {

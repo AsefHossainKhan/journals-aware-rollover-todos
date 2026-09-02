@@ -51,7 +51,7 @@ function parseEnabledJournals(value) {
 var BULLET_SYMBOLS = ["-", "*", "+"];
 function parseIntoChars(content) {
   const SegmenterCtor = Intl.Segmenter;
-  if (typeof Intl !== "undefined" && SegmenterCtor) {
+  if (SegmenterCtor) {
     const segmenter = new SegmenterCtor("en", { granularity: "grapheme" });
     return Array.from(segmenter.segment(content), (s) => s.segment);
   }
@@ -439,7 +439,7 @@ function frontmatterEndIndex(lines) {
   return 0;
 }
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 var JournalsAwareRolloverSettingTab = class extends import_obsidian2.PluginSettingTab {
   constructor(app, plugin) {

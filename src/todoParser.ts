@@ -18,14 +18,18 @@ export interface TodoParseOptions {
 
 const BULLET_SYMBOLS = ["-", "*", "+"];
 
+/** Minimal typing for `Intl.Segmenter`, which isn't in the ES2018 lib we target. */
+interface GraphemeSegmenter {
+	segment(input: string): Iterable<{ segment: string }>;
+}
+interface GraphemeSegmenterCtor {
+	new (locale: string, options: { granularity: "grapheme" }): GraphemeSegmenter;
+}
+
 /** Segment a string into grapheme clusters so a single emoji counts as one char. */
 function parseIntoChars(content: string): string[] {
-	const SegmenterCtor = (Intl as unknown as { Segmenter?: unknown }).Segmenter as
-		| (new (locale: string, options: { granularity: string }) => {
-				segment(input: string): Iterable<{ segment: string }>;
-		  })
-		| undefined;
-	if (typeof Intl !== "undefined" && SegmenterCtor) {
+	const SegmenterCtor = (Intl as { Segmenter?: GraphemeSegmenterCtor }).Segmenter;
+	if (SegmenterCtor) {
 		const segmenter = new SegmenterCtor("en", { granularity: "grapheme" });
 		return Array.from(segmenter.segment(content), (s) => s.segment);
 	}

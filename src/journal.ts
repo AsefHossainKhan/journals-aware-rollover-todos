@@ -65,9 +65,7 @@ export async function getJournalInfo(app: App, file: TFile): Promise<JournalInfo
 	} catch {
 		/* fall through to cache */
 	}
-	const cached = app.metadataCache.getFileCache(file)?.frontmatter as
-		| Record<string, unknown>
-		| undefined;
+	const cached = app.metadataCache.getFileCache(file)?.frontmatter;
 	return journalInfoFromFrontmatter(cached);
 }
 
@@ -87,9 +85,7 @@ export function findPreviousJournalNote(
 	for (const file of app.vault.getMarkdownFiles()) {
 		if (file.path === currentFile.path) continue;
 
-		const fm = app.metadataCache.getFileCache(file)?.frontmatter as
-			| Record<string, unknown>
-			| undefined;
+		const fm = app.metadataCache.getFileCache(file)?.frontmatter;
 		const candidate = journalInfoFromFrontmatter(fm);
 		if (!candidate) continue;
 
