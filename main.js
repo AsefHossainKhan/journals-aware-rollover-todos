@@ -443,85 +443,176 @@ function frontmatterEndIndex(lines) {
 function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
+var COERCE_EMPTY_TO_DEFAULT = /* @__PURE__ */ new Set([
+  "headingPattern",
+  "doneStatusMarkers"
+]);
+var SETTING_DESCRIPTORS = [
+  {
+    key: "autoRolloverOnCreate",
+    name: "Automatic rollover on new note",
+    desc: "Roll over todos automatically when the Journals plugin creates a new note. The manual command is always available regardless of this setting.",
+    control: { type: "toggle" }
+  },
+  {
+    key: "deleteFromPrevious",
+    name: "Delete todos from the previous note",
+    desc: "After copying todos forward, remove them from the previous note (move instead of copy). Destructive \u2014 leave off to duplicate them safely.",
+    control: { type: "toggle" }
+  },
+  {
+    key: "rolloverChildren",
+    name: "Roll over child items",
+    desc: "Also carry indented lines nested beneath an unfinished todo.",
+    control: { type: "toggle" }
+  },
+  {
+    key: "removeEmptyTodos",
+    name: "Skip empty todos",
+    desc: "Do not roll over bare `- [ ]` items that have no text.",
+    control: { type: "toggle" }
+  },
+  {
+    key: "skipDuplicates",
+    name: "Skip todos already in the new note",
+    desc: "Avoid inserting a todo whose exact text already exists in the target note.",
+    control: { type: "toggle" }
+  },
+  {
+    key: "headingPattern",
+    name: "Target heading pattern",
+    desc: "Case-insensitive regex matched against heading lines. Todos are inserted beneath the first match. Default matches headings ending in TODOS (e.g. `## FRIDAY TODOS`).",
+    control: {
+      type: "text",
+      placeholder: DEFAULT_SETTINGS.headingPattern,
+      validate: (value) => {
+        try {
+          new RegExp(value || DEFAULT_SETTINGS.headingPattern, "i");
+        } catch (e) {
+          return "Not a valid regular expression.";
+        }
+      }
+    }
+  },
+  {
+    key: "headingFallback",
+    name: "If the heading is not found",
+    desc: "Where to place todos when no heading matches the pattern.",
+    control: {
+      type: "dropdown",
+      options: {
+        bottom: "Append to bottom of note",
+        top: "Insert at top (after frontmatter)",
+        skip: "Skip rollover"
+      }
+    }
+  },
+  {
+    key: "doneStatusMarkers",
+    name: "Done status markers",
+    desc: 'Characters inside `[ ]` that mean a todo is complete. Default "xX-".',
+    control: { type: "text", placeholder: DEFAULT_SETTINGS.doneStatusMarkers }
+  },
+  {
+    key: "enabledJournals",
+    name: "Limit to journals",
+    desc: "Comma-separated Journals names to act on (matched against the `journal` frontmatter field). Leave empty to act on every note that has a `journal-date`.",
+    control: { type: "text", placeholder: "e.g. DailyNote, WeeklyNote" }
+  },
+  {
+    key: "showNotice",
+    name: "Show notice after rollover",
+    desc: "Display a short summary each time todos are rolled over.",
+    control: { type: "toggle" }
+  }
+];
 var JournalsAwareRolloverSettingTab = class extends import_obsidian2.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
+  /**
+   * Declarative settings (Obsidian 1.13.0+). Returning a non-empty array makes
+   * Obsidian render the tab from these definitions and index them for settings
+   * search; `display()` below is then not called and only serves older builds.
+   */
+  getSettingDefinitions() {
+    return SETTING_DESCRIPTORS.map((d) => ({
+      name: d.name,
+      desc: d.desc,
+      control: buildControl(d)
+    }));
+  }
+  getControlValue(key) {
+    return this.plugin.settings[key];
+  }
+  async setControlValue(key, value) {
+    this.store(key, value);
+    await this.plugin.saveSettings();
+  }
+  /** Coerce and write one setting value into the settings object. */
+  store(key, value) {
+    const settings = this.plugin.settings;
+    if (typeof value === "string" && value === "" && COERCE_EMPTY_TO_DEFAULT.has(key)) {
+      settings[key] = DEFAULT_SETTINGS[key];
+      return;
+    }
+    settings[key] = value;
+  }
+  /**
+   * Imperative fallback for Obsidian < 1.13.0, where `getSettingDefinitions`
+   * is not consulted. Renders the same descriptors with the classic API.
+   */
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian2.Setting(containerEl).setName("Automatic rollover on new note").setDesc(
-      "Roll over todos automatically when the Journals plugin creates a new note. The manual command is always available regardless of this setting."
-    ).addToggle(
-      (t) => t.setValue(this.plugin.settings.autoRolloverOnCreate).onChange(async (v) => {
-        this.plugin.settings.autoRolloverOnCreate = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian2.Setting(containerEl).setName("Delete todos from the previous note").setDesc(
-      "After copying todos forward, remove them from the previous note (move instead of copy). Destructive \u2014 leave off to duplicate them safely."
-    ).addToggle(
-      (t) => t.setValue(this.plugin.settings.deleteFromPrevious).onChange(async (v) => {
-        this.plugin.settings.deleteFromPrevious = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian2.Setting(containerEl).setName("Roll over child items").setDesc("Also carry indented lines nested beneath an unfinished todo.").addToggle(
-      (t) => t.setValue(this.plugin.settings.rolloverChildren).onChange(async (v) => {
-        this.plugin.settings.rolloverChildren = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian2.Setting(containerEl).setName("Skip empty todos").setDesc("Do not roll over bare `- [ ]` items that have no text.").addToggle(
-      (t) => t.setValue(this.plugin.settings.removeEmptyTodos).onChange(async (v) => {
-        this.plugin.settings.removeEmptyTodos = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian2.Setting(containerEl).setName("Skip todos already in the new note").setDesc("Avoid inserting a todo whose exact text already exists in the target note.").addToggle(
-      (t) => t.setValue(this.plugin.settings.skipDuplicates).onChange(async (v) => {
-        this.plugin.settings.skipDuplicates = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian2.Setting(containerEl).setName("Target heading pattern").setDesc(
-      "Case-insensitive regex matched against heading lines. Todos are inserted beneath the first match. Default matches headings ending in TODOS (e.g. `## FRIDAY TODOS`)."
-    ).addText(
-      (t) => t.setPlaceholder(DEFAULT_SETTINGS.headingPattern).setValue(this.plugin.settings.headingPattern).onChange(async (v) => {
-        this.plugin.settings.headingPattern = v || DEFAULT_SETTINGS.headingPattern;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian2.Setting(containerEl).setName("If the heading is not found").setDesc("Where to place todos when no heading matches the pattern.").addDropdown(
-      (d) => d.addOptions({
-        bottom: "Append to bottom of note",
-        top: "Insert at top (after frontmatter)",
-        skip: "Skip rollover"
-      }).setValue(this.plugin.settings.headingFallback).onChange(async (v) => {
-        this.plugin.settings.headingFallback = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian2.Setting(containerEl).setName("Done status markers").setDesc('Characters inside `[ ]` that mean a todo is complete. Default "xX-".').addText(
-      (t) => t.setPlaceholder(DEFAULT_SETTINGS.doneStatusMarkers).setValue(this.plugin.settings.doneStatusMarkers).onChange(async (v) => {
-        this.plugin.settings.doneStatusMarkers = v || DEFAULT_SETTINGS.doneStatusMarkers;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian2.Setting(containerEl).setName("Limit to journals").setDesc(
-      "Comma-separated Journals names to act on (matched against the `journal` frontmatter field). Leave empty to act on every note that has a `journal-date`."
-    ).addText(
-      (t) => t.setPlaceholder("e.g. DailyNote, WeeklyNote").setValue(this.plugin.settings.enabledJournals).onChange(async (v) => {
-        this.plugin.settings.enabledJournals = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian2.Setting(containerEl).setName("Show notice after rollover").setDesc("Display a short summary each time todos are rolled over.").addToggle(
-      (t) => t.setValue(this.plugin.settings.showNotice).onChange(async (v) => {
-        this.plugin.settings.showNotice = v;
-        await this.plugin.saveSettings();
-      })
-    );
+    for (const d of SETTING_DESCRIPTORS) {
+      const setting = new import_obsidian2.Setting(containerEl).setName(d.name).setDesc(d.desc);
+      this.addControl(setting, d);
+    }
+  }
+  addControl(setting, d) {
+    const key = d.key;
+    const commit = async (value) => {
+      this.store(key, value);
+      await this.plugin.saveSettings();
+    };
+    switch (d.control.type) {
+      case "toggle":
+        setting.addToggle(
+          (t) => t.setValue(this.plugin.settings[key]).onChange((v) => void commit(v))
+        );
+        break;
+      case "dropdown": {
+        const options = d.control.options;
+        setting.addDropdown(
+          (dd) => dd.addOptions(options).setValue(this.plugin.settings[key]).onChange((v) => void commit(v))
+        );
+        break;
+      }
+      case "text": {
+        const placeholder = d.control.placeholder;
+        setting.addText(
+          (t) => t.setPlaceholder(placeholder).setValue(this.plugin.settings[key]).onChange((v) => void commit(v))
+        );
+        break;
+      }
+    }
   }
 };
+function buildControl(d) {
+  const key = d.key;
+  switch (d.control.type) {
+    case "toggle":
+      return { type: "toggle", key };
+    case "dropdown":
+      return { type: "dropdown", key, options: d.control.options };
+    case "text":
+      return {
+        type: "text",
+        key,
+        placeholder: d.control.placeholder,
+        validate: d.control.validate
+      };
+  }
+}
